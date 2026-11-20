@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#172033">
+<title>Quick Expense Log</title>
+
+<style>
+:root{
+color-scheme:dark;
+--bg:#101827;
+--panel:#1b2739;
+--muted:#9aa9bd;
+--text:#f4f7fb;
+--accent:#8fc5ff;
+--line:#334258
+}
+*{box-sizing:border-box}
+body{
+margin:0;
+background:var(--bg);
+color:var(--text);
+font:16px system-ui,-apple-system,sans-serif
+}
+main{
+max-width:620px;
+margin:auto;
+padding:20px 16px 48px
+}
+h1{
+font-size:24px;
+margin:8px 0 4px
+}
+.sub{
+color:var(--muted);
+font-size:14px;
+margin:0 0 20px
+}
+.card{
+background:var(--panel);
+border:1px solid var(--line);
+border-radius:18px;
+padding:16px;
+margin:14px 0
+}
+label{
+display:block;
+font-size:13px;
+color:var(--muted);
+margin:12px 0 6px
+}
+input,select{
+width:100%;
+background:#111c2c;
+color:var(--text);
+border:1px solid var(--line);
+border-radius:12px;
+padding:13px;
+font:inherit;
+outline:none
+}
+input:focus,select:focus{
+border-color:var(--accent)
+}
+.amount{
+font-size:34px;
+font-weight:700;
+letter-spacing:-1px
+}
+.grid{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:8px
+}
+.chip{
+border:1px solid var(--line);
+background:#111c2c;
+color:var(--text);
+border-radius:12px;
+padding:11px 5px;
+font-size:13px;
+cursor:pointer
+}
+.chip.active{
+background:#24415f;
+border-color:var(--accent);
+color:white
+}
+button.primary{
+width:100%;
+margin-top:16px;
+border:0;
+border-radius:13px;
+padding:15px;
+background:var(--accent);
+color:#102033;
+font-weight:750;
+font-size:16px;
+cursor:pointer
+}
+.actions{
+display:flex;
+gap:8px;
+flex-wrap:wrap
+}
+.small{
+font-size:12px;
+color:var(--muted)
+}
+.entry{
+padding:12px 0;
+border-bottom:1px solid var(--line);
+display:flex;
+justify-content:space-between;
+gap:12px
+}
+.entry:last-child{
+border-bottom:0
+}
+.entry strong{
+display:block
+}
+.entry small{
+color:var(--muted)
+}
+.entry .amt{
+white-space:nowrap;
+font-weight:700;
+margin-bottom:8px
+}
+.hidden{
+display:none
+}
+.delete-btn{
+background:#7d1f1f;
+color:white;
+border:none;
+padding:6px 10px;
+border-radius:8px;
+cursor:pointer
+}
+</style>
+</head>
+
+<body>
+
+<main>
+
+<h1>Quick Expense Log</h1>
+<p class="sub">Record why you paid. No spreadsheet, no account required.</p>
+
+<section class="card">
+
+<label for="amount">Amount (₹)</label>
+<input id="amount"
+class="amount"
+type="number"
+inputmode="decimal"
+min="0"
+step="0.01"
+placeholder="0"
+autofocus>
+
+<label for="paidto">Paid to</label>
+<input id="paidto"
+type="text"
+placeholder="Person or shop (optional)">
+
+<label for="expenseDate">Expense Date</label>
+<input id="expenseDate" type="date">
+
+<label>Category</label>
+
+<div class="grid" id="categories">
+<button class="chip active" type="button">Household</button>
+<button class="chip" type="button">Groceries</button>
+<button class="chip" type="button">Food</button>
+<button class="chip" type="button">Travel</button>
+<button class="chip" type="button">Family</button>
+<button class="chip" type="button">Personal</button>
+<button class="chip" type="button">Medical</button>
+<button class="chip" type="button">Shopping</button>
+<button class="chip" type="button">Loan / Lent</button>
+<button class="chip" type="button">Investment</button>
+<button class="chip" type="button">Bills</button>
+<button class="chip" type="button">Other</button>
+</div>
+
+<label for="purpose">What was it for?</label>
+<input id="purpose"
+type="text"
+placeholder="e.g. vegetables, cab to office">
+
+<button class="primary" id="save">
+Save Expense
+</button>
+
+<p class="small" id="status">
+Saved only on this device's browser.
+</p>
+
+</section>
+
+<section class="card">
+
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+
+<div>
+<strong>Recent Entries</strong>
+<div class="small" id="total">
+₹0 recorded
+</div>
+</div>
+
+<div class="actions">
+<button class="chip" id="export">
+Export CSV
+</button>
+
+<button class="chip" id="exportTxt">
+Export TXT
+</button>
+</div>
+
+</div>
+
+<div id="entries" style="margin-top:10px"></div>
+
+<p class="small" id="empty">
+No entries yet.
+</p>
+
+</section>
+
+</main>
+
+<script>
+
+const $ = id => document.getElementById(id);
+
+let category = "Household";
+let entries = [];
+
+try{
+entries = JSON.parse(
+localStorage.getItem("quickExpenseEntries") || "[]"
+);
+
+if(!Array.isArray(entries)){
+entries = [];
+}
+}catch(e){
+entries = [];
+}
+
+window.addEventListener("load",()=>{
+$("expenseDate").value =
+new Date().toISOString().split("T")[0];
+});
+
+document
+.querySelectorAll("#categories .chip")
+.forEach(btn=>{
+
+btn.addEventListener("click",()=>{
+
+document
+.querySelectorAll("#categories .chip")
+.forEach(x=>x.classList.remove("active"));
+
+btn.classList.add("active");
+category = btn.textContent;
+
+});
+
+});
+
+function persist(){
+
+try{
+localStorage.setItem(
+"quickExpenseEntries",
+JSON.stringify(entries)
+);
+
+$("status").textContent =
+"Saved on this device.";
+}
+catch(e){
+$("status").textContent =
+"Could not save locally.";
+}
+
+}
+
+function deleteEntry(id){
+
+if(!confirm("Delete this expense?")){
+return;
+}
+
+entries = entries.filter(
+e => e.id !== id
+);
+
+persist();
+render();
+
+}
+
+function render(){
+
+$("entries").innerHTML = "";
+
+$("empty").classList.toggle(
+"hidden",
+entries.length > 0
+);
+
+const total = entries.reduce(
+(sum,e)=>sum + Number(e.amount),
+0
+);
+
+$("total").textContent =
+"₹" +
+total.toLocaleString(
+"en-IN",
+{maximumFractionDigits:2}
+) +
+" recorded";
+
+entries.slice(0,25).forEach(e=>{
+
+const row =
+document.createElement("div");
+
+row.className = "entry";
+
+const left =
+document.createElement("div");
+
+const title =
+document.createElement("strong");
+
+title.textContent =
+e.purpose || e.category;
+
+const details =
+document.createElement("small");
+
+details.textContent = [
+e.paidto,
+e.category,
+e.date
+]
+.filter(Boolean)
+.join(" · ");
+
+left.append(
+title,
+details
+);
+
+const right =
+document.createElement("div");
+
+const amount =
+document.createElement("div");
+
+amount.className = "amt";
+
+amount.textContent =
+"₹" +
+Number(e.amount)
+.toLocaleString("en-IN");
+
+const del =
+document.createElement("button");
+
+del.className =
+"delete-btn";
+
+del.textContent =
+"Delete";
+
+del.onclick =
+()=>deleteEntry(e.id);
+
+right.append(
+amount,
+del
+);
+
+row.append(
+left,
+right
+);
+
+$("entries")
+.append(row);
+
+});
+
+}
+
+$("save").addEventListener(
+"click",
+()=>{
+
+const amount =
+Number($("amount").value);
+
+if(
+!Number.isFinite(amount)
+||
+amount <= 0
+){
+$("status").textContent =
+"Enter a valid amount.";
+return;
+}
+
+const purpose =
+$("purpose").value.trim();
+
+if(!purpose){
+$("status").textContent =
+"Add a purpose.";
+return;
+}
+
+entries.unshift({
+
+id:Date.now(),
+
+date:
+$("expenseDate").value
+||
+new Date().toISOString(),
+
+amount,
+
+paidto:
+$("paidto").value.trim(),
+
+category,
+
+purpose
+
+});
+
+persist();
+render();
+
+$("amount").value="";
+$("paidto").value="";
+$("purpose").value="";
+
+$("amount").focus();
+
+}
+);
+
+$("export").addEventListener(
+"click",
+()=>{
+
+const rows = [
+
+["Date","Amount","Paid To","Category","Purpose"],
+
+...entries.map(e=>[
+e.date,
+e.amount,
+e.paidto,
+e.category,
+e.purpose
+])
+
+];
+
+const csv = rows
+.map(r=>
+r.map(v=>
+'"'+String(v??"")
+.replace(/"/g,'""')+'"'
+).join(",")
+)
+.join("\n");
+
+const blob =
+new Blob(
+[csv],
+{type:"text/csv;charset=utf-8"}
+);
+
+const url =
+URL.createObjectURL(blob);
+
+const a =
+document.createElement("a");
+
+a.href = url;
+a.download = "expense-log.csv";
+a.click();
+
+URL.revokeObjectURL(url);
+
+});
+
+$("exportTxt").addEventListener(
+"click",
+()=>{
+
+let txt =
+"EXPENSE LOG\n";
+txt +=
+"============================\n\n";
+
+entries.forEach(e=>{
+
+txt +=
+`Date     : ${e.date}
+Amount   : ₹${e.amount}
+Paid To  : ${e.paidto || "-"}
+Category : ${e.category}
+Purpose  : ${e.purpose}
+
+--------------------------------
+
+`;
+
+});
+
+const blob =
+new Blob(
+[txt],
+{type:"text/plain;charset=utf-8"}
+);
+
+const url =
+URL.createObjectURL(blob);
+
+const a =
+document.createElement("a");
+
+a.href = url;
+a.download =
+"expense-log.txt";
+
+a.click();
+
+URL.revokeObjectURL(url);
+
+});
+
+render();
+
+</script>
+
+</body>
+</html>
